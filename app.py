@@ -30,7 +30,7 @@ def read_repository_contents(repo_path):
     return '\n'.join(contents)
 
 def generate_readme(repo_contents):
-    """Generate a README file using GPT-4."""
+    """Generate a README file using GPT-4o-mini."""
     prompt = f"Based on the following repository contents, generate a comprehensive README.md file:\n\n{repo_contents}\n\nREADME.md:"
     
     messages = [
