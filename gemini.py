@@ -1,3 +1,7 @@
+# This can handle large repos too. 
+# Description: This script generates a README file for a GitHub repository using the Gemini API.
+# python gemini.py <repository_url>
+
 import os
 import git
 import shutil
@@ -9,21 +13,18 @@ import logging
 import argparse
 import time
 
-# Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-# Load environment variables
 load_dotenv()
 
-# Configure Gemini API
 configure(api_key=os.getenv('GEMINI_API_KEY'))
 model = GenerativeModel('gemini-pro')
 
 MAX_CONTENT_LENGTH = 100000  # Adjust this based on Gemini's actual limit
 RATE_LIMIT_DELAY = 60  # Delay in seconds when rate limit is hit
 
-def clone_repository(repo_url, local_path):
+def CloneRepository(repo_url, local_path):
     """Clone the given repository to the specified local path."""
     try:
         if os.path.exists(local_path):
@@ -34,7 +35,7 @@ def clone_repository(repo_url, local_path):
         logger.error(f"Failed to clone repository: {e}")
         raise
 
-def get_important_files(repo_path):
+def GetImportantFiles(repo_path):
     """Get a list of important files for README generation."""
     important_files = []
     important_patterns = [
@@ -50,7 +51,7 @@ def get_important_files(repo_path):
     
     return important_files[:10]  # Limit to top 10 files
 
-def read_file_preview(file_path, max_lines=50):
+def ReadFilePreview(file_path, max_lines=50):
     """Read a preview of the file contents."""
     try:
         with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
@@ -61,16 +62,16 @@ def read_file_preview(file_path, max_lines=50):
         logger.warning(f"Failed to read file {file_path}: {e}")
         return ""
 
-def read_repository_contents(repo_path):
+def ReadRepositoryContents(repo_path):
     """Read the contents of important files in the repository."""
-    important_files = get_important_files(repo_path)
-    contents = [read_file_preview(file) for file in important_files]
+    important_files = GetImportantFiles(repo_path)
+    contents = [ReadFilePreview(file) for file in important_files]
     return '\n'.join(contents)
 
-def generate_readme(repo_contents):
+def GenerateReadme(repo_contents):
     """Generate a README file using Gemini API with rate limit handling."""
     prompt = f"""
-    Based on the following repository preview, generate a concise README.md file:
+    Based on the following repository preview, generate a comprehensive README.md file:
 
     {repo_contents}
 
@@ -81,7 +82,7 @@ def generate_readme(repo_contents):
     4. Basic Installation & Usage
     5. License (if found)
 
-    Keep it concise and informative.
+    Keep it informative. It should cover all the necssary contents in the repository.
     """
     
     max_retries = 3
@@ -100,13 +101,13 @@ def generate_readme(repo_contents):
 def main(repo_url, output_path):
     with tempfile.TemporaryDirectory() as temp_dir:
         try:
-            clone_repository(repo_url, temp_dir)
+            CloneRepository(repo_url, temp_dir)
             
             logger.info("Reading repository contents...")
-            repo_contents = read_repository_contents(temp_dir)
+            repo_contents = ReadRepositoryContents(temp_dir)
             
             logger.info("Generating README...")
-            readme_content = generate_readme(repo_contents)
+            readme_content = GenerateReadme(repo_contents)
             
             output_file = Path(output_path) / "README.md"
             with open(output_file, "w") as f:

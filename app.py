@@ -1,3 +1,7 @@
+# !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+# This script has the highest accuracy in making readme files. When you run this script it will make a directory 
+# called temp_repo and clone the repository in it. Make sure to delete that before using this script again.
+
 import os
 import git
 import shutil
@@ -11,13 +15,13 @@ os.environ['OPENAI_API_KEY'] = os.getenv('OPENAI_API_KEY')
 llm = ChatOpenAI(model_name='gpt-4o-mini')
 
 
-def clone_repository(repo_url, local_path):
+def CloneRepository(repo_url, local_path):
     """Clone the given repository to the specified local path."""
     if os.path.exists(local_path):
-        shutil.rmtree(local_path)  # Remove the directory if it already exists
+        shutil.rmtree(local_path) 
     git.Repo.clone_from(repo_url, local_path)
 
-def read_repository_contents(repo_path):
+def ReadRepositoryContents(repo_path):
     """Read the contents of all files in the repository."""
     contents = []
     for root, _, files in os.walk(repo_path):
@@ -29,7 +33,7 @@ def read_repository_contents(repo_path):
                 contents.append(f"File: {file_path}\n\n{f.read()}\n\n")
     return '\n'.join(contents)
 
-def generate_readme(repo_contents):
+def GenerateReadme(repo_contents):
     """Generate a README file using GPT-4o-mini."""
     prompt = f"Based on the following repository contents, generate a comprehensive README.md file:\n\n{repo_contents}\n\nREADME.md:"
     
@@ -47,23 +51,18 @@ def main():
     local_path = "./temp_repo"
     
     try:
-        # Clone the repository
-        clone_repository(repo_url, local_path)
+        CloneRepository(repo_url, local_path)
         
-        # Read the repository contents
-        repo_contents = read_repository_contents(local_path)
+        repo_contents = ReadRepositoryContents(local_path)
         
-        # Generate the README
-        readme_content = generate_readme(repo_contents)
+        readme_content = GenerateReadme(repo_contents)
         
-        # Save the README
         with open("README.md", "w") as f:
             f.write(readme_content)
         
         print("README.md has been generated successfully!")
     
     finally:
-        # Clean up: remove the cloned repository
         shutil.rmtree(local_path, ignore_errors=True)
 
 if __name__ == "__main__":

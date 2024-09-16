@@ -33,7 +33,7 @@ To run the README Generator, follow these steps:
    - Ensure you have Python 3.7 or later installed.
    - Install the required packages:
      ```bash
-     pip install langchain_openai google-generativeai python-dotenv
+     pip install -r requirements.txt
      ```
 
 3. **Set Up API Keys**:

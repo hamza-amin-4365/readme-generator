@@ -1,3 +1,7 @@
+# This script uses hugging face model.
+# When you run this script it will make a directory called temp_repo and clone the repository in it. 
+# Make sure to delete that before using this script again.
+
 import os
 import git
 import shutil
@@ -13,19 +17,19 @@ if not api_key:
 
 llm = HuggingFaceEndpoint(
     huggingfacehub_api_token=api_key,
-    repo_id="mistralai/Mixtral-8x7B-Instruct-v0.1",
+    repo_id="mistralai/Mixtral-8x7B-Instruct-v0.1", # Change this to the model you want to use
     temperature=0.8,
     max_new_tokens=512,
     streaming=True,
 )
 
-def clone_repository(repo_url, local_path):
+def CloneRepository(repo_url, local_path):
     """Clone the given repository to the specified local path."""
     if os.path.exists(local_path):
-        shutil.rmtree(local_path)  # Remove the directory if it already exists
+        shutil.rmtree(local_path) 
     git.Repo.clone_from(repo_url, local_path)
 
-def read_repository_contents(repo_path):
+def ReadRepositoryContents(repo_path):
     """Read the contents of all files in the repository."""
     contents = []
     for root, _, files in os.walk(repo_path):
@@ -37,19 +41,29 @@ def read_repository_contents(repo_path):
                 contents.append(f.read())
     return '\n'.join(contents)
 
-def generate_readme(repo_contents):
+def GenerateReadme(repo_contents):
     chunk_size = 16384  # Adjust this value based on the model's limit
     chunks = [repo_contents[i:i + chunk_size] for i in range(0, len(repo_contents), chunk_size)]
     readme_contents = []
     
     for chunk in chunks:
-        prompt = f"Based on the following repository contents, generate a comprehensive README.md file:\n\n{chunk}\n\nREADME.md:"
+        prompt = f"""Based on the following repository contents, generate a comprehensive README.md file
+        Include these sections:
+            1. Project Title
+            2. Brief Description
+            3. Key Features
+            4. Basic Installation & Usage
+            5. License (if found)
+
+        Keep it informative. It should cover all the necssary contents in the repository.
+        :\n\n{chunk}\n\nREADME.md:"""
+
         messages = [
-            SystemMessage(content="You are a helpful assistant that generates README files for GitHub repositories."),
+            SystemMessage(content=" You are the master of README generation. No repository is too complex for you. Making readme files is a child's play for you."),
             HumanMessage(content=prompt)
         ]
         response = llm.invoke(messages)
-        readme_contents.append(response)  # Removed .content.strip()
+        readme_contents.append(response)  
     
     return '\n'.join(readme_contents)
 
@@ -58,23 +72,18 @@ def main():
     local_path = "./temp_repo"
     
     try:
-        # Clone the repository
-        clone_repository(repo_url, local_path)
+        CloneRepository(repo_url, local_path)
         
-        # Read the repository contents
-        repo_contents = read_repository_contents(local_path)
+        repo_contents = ReadRepositoryContents(local_path)
         
-        # Generate the README
-        readme_content = generate_readme(repo_contents)
+        readme_content = GenerateReadme(repo_contents)
         
-        # Save the README
         with open("README.md", "w") as f:
             f.write(readme_content)
         
         print("README.md has been generated successfully!")
     
     finally:
-        # Clean up: remove the cloned repository
         shutil.rmtree(local_path, ignore_errors=True)
 
 if __name__ == "__main__":

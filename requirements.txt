@@ -1,0 +1,6 @@
+gitpython
+python-dotenv
+google-api-python-client
+langchain_openai
+langchain
+huggingface_hub
