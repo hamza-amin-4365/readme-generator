@@ -1,10 +1,21 @@
 import os
 import json
 import git
+import shutil
+import stat
 from pathlib import Path
+
+def on_rm_error(func, path, exc_info):
+    """Error handler for `shutil.rmtree` to handle read-only files."""
+    # Change file permissions and retry
+    os.chmod(path, stat.S_IWRITE)
+    func(path)
 
 def clone_repo(repo_url, clone_dir):
     """Clone a GitHub repo to a local directory."""
+    if os.path.exists(clone_dir):
+        print(f"Directory {clone_dir} already exists. Removing it.")
+        shutil.rmtree(clone_dir, onerror=on_rm_error)  # Use custom error handler
     git.Repo.clone_from(repo_url, clone_dir)
 
 def extract_repo_info(repo_path):
@@ -42,9 +53,11 @@ def save_to_json(data, output_path):
         json.dump(data, f, indent=4)
 
 # Example usage:
-repo_url = 'https://github.com/some/repo.git'  # Replace with actual repo
-clone_dir = '/content/repo'  # Or other directory
-output_json = '/content/repo_data.json'
+repo_url = 'https://github.com/hamza-amin-4365/Chat-with-sql.git'  # Replace with actual repo
+# Change this to a valid path on your local machine
+clone_dir = '/repo_data'
+
+output_json = 'repo_data.json'
 
 # Step-by-step
 clone_repo(repo_url, clone_dir)
