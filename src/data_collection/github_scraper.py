@@ -3,7 +3,6 @@ import json
 import git
 import shutil
 import stat
-from pathlib import Path
 
 def on_rm_error(func, path, exc_info):
     """Error handler for `shutil.rmtree` to handle read-only files."""
