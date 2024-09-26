@@ -5,7 +5,7 @@ from github import Github
 from dotenv import load_dotenv
 load_dotenv()
 
-ORG = "huggingface"
+ORG = "hamza-amin-4365"
 MIRROR_DIRECTORY = "hf_public_repos"
 
 

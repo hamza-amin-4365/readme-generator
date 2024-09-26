@@ -57,7 +57,7 @@ def main():
         
         readme_content = GenerateReadme(repo_contents)
         
-        with open("README.md", "w") as f:
+        with open("README.md", "w", encoding='utf-8') as f:
             f.write(readme_content)
         
         print("README.md has been generated successfully!")

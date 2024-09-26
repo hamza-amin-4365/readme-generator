@@ -71,18 +71,24 @@ def ReadRepositoryContents(repo_path):
 def GenerateReadme(repo_contents):
     """Generate a README file using Gemini API with rate limit handling."""
     prompt = f"""
-    Based on the following repository preview, generate a comprehensive README.md file:
+    Given the following repository preview, create a professional and comprehensive README.md file.
 
+    Repository Preview:
     {repo_contents}
 
-    Include these sections:
-    1. Project Title
-    2. Brief Description
-    3. Key Features
-    4. Basic Installation & Usage
-    5. License (if found)
+    The README.md should have the following sections:
 
-    Keep it informative. It should cover all the necssary contents in the repository.
+    1. **Project Title**: A clear, concise, and descriptive title for the project.
+    2. **Overview**: A detailed explanation of the project, including its purpose, what problem it solves, and the key objectives.
+    3. **Key Features**: Highlight the main features or functionalities provided by the project, giving insights into the core strengths of the application or codebase.
+    4. **Technologies Used**: List all the major technologies, libraries, frameworks, and tools used in the project. Add versions where applicable.
+    5. **Installation & Setup Instructions**: Provide detailed steps for setting up the project locally, including all dependencies, environment setup, and configuration steps.
+    6. **Usage**: Explain how to run the project or use its features, including command-line instructions, API usage examples, or screenshots of the UI if relevant.
+    7. **Contributing Guidelines**: Include any specific guidelines for contributing to the project (if available), such as coding style guides, testing protocols, or pull request processes.
+    8. **License**: If the repository contains a license, specify the type of license, and provide any attribution or copyright information.
+
+    Make sure the tone is professional yet welcoming, with clear and concise language. The README should provide an excellent first impression and be useful for both beginners and experienced developers exploring the project.
+    Please make sure to format the README file correctly using Markdown syntax.
     """
     
     max_retries = 3
