@@ -25,4 +25,4 @@ if __name__ == "__main__":
     print(f"Final DF prepared containing {len(final_df)} rows.")
 
     dataset = Dataset.from_pandas(final_df)
-    dataset.push_to_hub("hf-codegen-v2")
+    dataset.push_to_hub("readme-gen-data")
