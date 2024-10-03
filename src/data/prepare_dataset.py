@@ -1,12 +1,21 @@
 import os
+import json
 import pandas as pd
+import logging
 from nbformat import reads, NO_CONVERT
 from tqdm import tqdm
 from datasets import Dataset
-from typing import Dict
+from typing import Dict, List, Optional, Tuple
 from huggingface_hub import create_repo, upload_folder
 import tempfile
-import shutil  # Use shutil for file operations
+import shutil
+
+# Set up logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
 
 # Constants
 MIRROR_DIRECTORY = "test"
@@ -14,171 +23,179 @@ DATASET_ID = "hamza-amin/readme-gen-data"
 SERIALIZE_IN_CHUNKS = 10000
 FEATHER_FORMAT = "ftr"
 
-# Block the following formats.
+# Anti-formats (keeping the original lists)
 IMAGE = ["png", "jpg", "jpeg", "gif"]
 VIDEO = ["mp4", "jfif"]
-DOC = [
-    "key",
-    "PDF",
-    "pdf",
-    "docx",
-    "xlsx",
-    "pptx",
-]
+DOC = ["key", "PDF", "pdf", "docx", "xlsx", "pptx"]
 AUDIO = ["flac", "ogg", "mid", "webm", "wav", "mp3"]
 ARCHIVE = ["jar", "aar", "gz", "zip", "bz2"]
 MODEL = ["onnx", "pickle", "model", "neuron"]
 OTHERS = [
-    "npy",
-    "index",
-    "inv",
-    "DS_Store",
-    "rdb",
-    "pack",
-    "idx",
-    "glb",
-    "gltf",
-    "len",
-    "otf",
-    "unitypackage",
-    "ttf",
-    "xz",
-    "pcm",
-    "opus",
+    "npy", "index", "inv", "DS_Store", "rdb", "pack", "idx", "glb",
+    "gltf", "len", "otf", "unitypackage", "ttf", "xz", "pcm", "opus"
 ]
-ANTI_FORMATS = tuple(IMAGE + VIDEO + DOC + AUDIO + ARCHIVE + OTHERS)
+ANTI_FORMATS = tuple(IMAGE + VIDEO + DOC + AUDIO + ARCHIVE + MODEL + OTHERS)
 
+# Key file patterns to identify important code files
+KEY_FILE_PATTERNS = [
+    "main", "index", "app", "setup.py", "package.json", 
+    "requirements.txt", "Dockerfile", "docker-compose.yml"
+]
+
+class RepoProcessor:
+    def __init__(self, directory: str):
+        self.directory = directory
+        self.df = pd.DataFrame(columns=["repo_id", "file_structure", "readme_content", "key_code_snippets"])
+        self.chunk_flag = 0
+
+    def _is_key_file(self, file_path: str) -> bool:
+        """Determine if a file is a key file based on patterns."""
+        file_name = os.path.basename(file_path).lower()
+        return any(pattern.lower() in file_name for pattern in KEY_FILE_PATTERNS)
+
+    def _read_file_content(self, file_path: str) -> Optional[str]:
+        """Safely read file content."""
+        try:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                content = f.read()
+                if file_path.endswith('.ipynb'):
+                    return self._process_notebook(content)
+                return content
+        except Exception as e:
+            logger.warning(f"Error reading file {file_path}: {e}")
+            return None
+
+    def _process_notebook(self, content: str) -> str:
+        """Process Jupyter notebook content."""
+        try:
+            notebook = reads(content, NO_CONVERT)
+            code_cells = [
+                c["source"] for c in notebook["cells"]
+                if c["cell_type"] == "code" and not (
+                    c["source"].startswith("!") or 
+                    "%%capture" in c["source"]
+                )
+            ]
+            return "\n".join(code_cells)
+        except Exception as e:
+            logger.warning(f"Error processing notebook: {e}")
+            return ""
+
+    def _build_file_structure(self, start_path: str) -> Dict:
+        """Build a JSON representation of the file structure."""
+        structure = {
+            "type": "directory",
+            "name": os.path.basename(start_path),
+            "children": []
+        }
+        
+        try:
+            for item in os.listdir(start_path):
+                full_path = os.path.join(start_path, item)
+                if any(k in full_path for k in [".git", "__pycache__", "xcodeproj"]):
+                    continue
+                    
+                if os.path.isfile(full_path) and not item.endswith(ANTI_FORMATS):
+                    structure["children"].append({
+                        "type": "file",
+                        "name": item
+                    })
+                elif os.path.isdir(full_path):
+                    structure["children"].append(
+                        self._build_file_structure(full_path)
+                    )
+        except Exception as e:
+            logger.error(f"Error building file structure for {start_path}: {e}")
+        
+        return structure
+
+    def process_repository(self, repo_path: str) -> Tuple[Dict, Dict, Optional[str]]:
+        """Process a single repository."""
+        file_structure = self._build_file_structure(repo_path)
+        key_code_snippets = {}
+        readme_content = None
+
+        for root, _, files in os.walk(repo_path):
+            for file in files:
+                if file.lower().startswith('readme.') and not file.endswith(ANTI_FORMATS):
+                    readme_path = os.path.join(root, file)
+                    readme_content = self._read_file_content(readme_path)
+                    continue
+
+                file_path = os.path.join(root, file)
+                if not file_path.endswith(ANTI_FORMATS) and self._is_key_file(file_path):
+                    content = self._read_file_content(file_path)
+                    if content:
+                        relative_path = os.path.relpath(file_path, repo_path)
+                        key_code_snippets[relative_path] = content
+
+        return file_structure, key_code_snippets, readme_content
+
+    def process_repositories(self):
+        """Process all repositories in the directory."""
+        repo_dirs = [d for d in os.listdir(self.directory) 
+                    if os.path.isdir(os.path.join(self.directory, d))]
+        
+        for repo_dir in tqdm(repo_dirs, desc="Processing repositories"):
+            full_path = os.path.join(self.directory, repo_dir)
+            try:
+                file_structure, key_code_snippets, readme_content = self.process_repository(full_path)
+                
+                repo_data = {
+                    "repo_id": repo_dir,
+                    "file_structure": json.dumps(file_structure),
+                    "readme_content": readme_content or "",
+                    "key_code_snippets": json.dumps(key_code_snippets)
+                }
+                
+                self.df = pd.concat([self.df, pd.DataFrame([repo_data])], ignore_index=True)
+                
+                if SERIALIZE_IN_CHUNKS and len(self.df) >= SERIALIZE_IN_CHUNKS:
+                    self._serialize_chunk()
+                    
+            except Exception as e:
+                logger.error(f"Error processing repository {repo_dir}: {e}")
+
+        if not self.df.empty:
+            self._serialize_chunk()
+
+    def _serialize_chunk(self):
+        """Serialize the current DataFrame chunk."""
+        df_path = f"df_chunk_{self.chunk_flag}_{len(self.df)}.{FEATHER_FORMAT}"
+        logger.info(f"Serializing dataframe to {df_path}")
+        self.df.reset_index(drop=True).to_feather(df_path)
+        self.df = pd.DataFrame(columns=["repo_id", "file_structure", "readme_content", "key_code_snippets"])
+        self.chunk_flag += 1
 
 def upload_to_hub(file_format: str, repo_id: str):
-    """Moves all the files matching `file_format` to a folder and
-    uploads the folder to the Hugging Face Hub."""
+    """Upload files to Hugging Face Hub."""
     try:
-        # Create the repository on Hugging Face Hub
-        repo = create_repo(repo_id=repo_id, exist_ok=True, repo_type="dataset")
-        print(f"Repository '{repo_id}' created or already exists.")
-    except Exception as e:
-        print(f"Failed to create repository: {e}")
-        return  # Exit the function if repository creation fails
-
-    # Create a temporary directory to store the files
-    with tempfile.TemporaryDirectory() as tmpdirname:
-        print(f"Created temporary directory: {tmpdirname}")
-
-        # Get the current working directory
-        current_dir = os.getcwd()
-
-        # Iterate over all files in the current directory
-        for file in os.listdir(current_dir):
-            if file.endswith(f".{file_format}"):
-                src_path = os.path.join(current_dir, file)
-                dest_path = os.path.join(tmpdirname, file)
-                try:
+        create_repo(repo_id=repo_id, exist_ok=True, repo_type="dataset")
+        logger.info(f"Repository '{repo_id}' created or already exists")
+        
+        with tempfile.TemporaryDirectory() as tmpdirname:
+            current_dir = os.getcwd()
+            
+            for file in os.listdir(current_dir):
+                if file.endswith(f".{file_format}"):
+                    src_path = os.path.join(current_dir, file)
+                    dest_path = os.path.join(tmpdirname, file)
                     shutil.move(src_path, dest_path)
-                    print(f"Moved '{file}' to temporary directory.")
-                except Exception as e:
-                    print(f"Error moving '{file}': {e}")
-
-        # Upload the folder to Hugging Face Hub
-        try:
+            
             upload_folder(repo_id=repo_id, folder_path=tmpdirname, repo_type="dataset")
-            print(f"Uploaded '{file_format}' files to the Hub under repository '{repo_id}'.")
-        except Exception as e:
-            print(f"Failed to upload folder to Hugging Face Hub: {e}")
-            return  # Exit if upload fails
-
-    print(f"All '{file_format}' files successfully uploaded to '{repo_id}'.")
-
-
-
-def filter_code_cell(cell) -> bool:
-    """Filters a code cell w.r.t shell commands, etc."""
-    only_shell = cell["source"].startswith("!")
-    only_magic = "%%capture" in cell["source"]
-    return not (only_shell or only_magic)
-
-
-def process_file(directory_name: str, file_path: str) -> Dict[str, str]:
-    """Processes a single file."""
-    try:
-        with open(file_path, "r", encoding="utf-8") as file:
-            content = file.read()
-            if file_path.endswith("ipynb"):
-                # Process Jupyter Notebook files
-                code_cell_str = ""
-                notebook = reads(content, NO_CONVERT)
-
-                code_cells = [
-                    c
-                    for c in notebook["cells"]
-                    if c["cell_type"] == "code" and filter_code_cell(c)
-                ]
-
-                for cell in code_cells:
-                    code_cell_str += cell["source"]
-                content = code_cell_str
+            logger.info(f"Uploaded '{file_format}' files to '{repo_id}'")
+            
     except Exception as e:
-        print(f"Error processing file {file_path}: {e}")
-        content = ""
-
-    return {
-        "repo_id": directory_name,
-        "file_path": file_path,
-        "content": content,
-    }
-
-
-def read_repository_files(directory) -> pd.DataFrame:
-    """Reads the files from the locally cloned repositories."""
-    file_paths = []
-    df = pd.DataFrame(columns=["repo_id", "file_path", "content"])
-    chunk_flag = 0
-
-    # Recursively find all files within the directory
-    for root, _, files in os.walk(directory):
-        for file in files:
-            file_path = os.path.join(root, file)
-            if not file_path.endswith(ANTI_FORMATS) and all(
-                k not in file_path for k in [".git", "__pycache__", "xcodeproj"]
-            ):
-                file_paths.append((os.path.basename(root), file_path))
-
-    # Process files sequentially.
-    print(f"Total file paths: {len(file_paths)}.")
-    print("Reading file contents...")
-
-    for i, (directory_name, file_path) in enumerate(tqdm(file_paths, desc="Processing files")):
-        file_content = process_file(directory_name, file_path)
-
-        if file_content["content"]:
-            temp_df = pd.DataFrame.from_dict([file_content])
-            df = pd.concat([df, temp_df], ignore_index=True)
-
-            if SERIALIZE_IN_CHUNKS and len(df) >= SERIALIZE_IN_CHUNKS:
-                df_path = f"df_chunk_{chunk_flag}_{len(df)}.{FEATHER_FORMAT}"
-                print(f"Serializing dataframe to {df_path}...")
-                df.reset_index(drop=True).to_feather(df_path)
-                df = pd.DataFrame(columns=["repo_id", "file_path", "content"])
-                chunk_flag += 1
-
-    # Serialize any remaining data
-    if not df.empty:
-        df_path = f"df_chunk_{chunk_flag}_{len(df)}.{FEATHER_FORMAT}"
-        print(f"Serializing remaining dataframe to {df_path}...")
-        df.reset_index(drop=True).to_feather(df_path)
-
-    return df
-
+        logger.error(f"Error in upload_to_hub: {e}")
 
 if __name__ == "__main__":
-    df = read_repository_files(MIRROR_DIRECTORY)
-    print("DataFrame created, creating dataset...")
-    upload_to_hub(file_format=FEATHER_FORMAT, repo_id=DATASET_ID)
-    print(f"{FEATHER_FORMAT} files uploaded to the Hub.")
-    
-    if not SERIALIZE_IN_CHUNKS:
-        try:
-            dataset = Dataset.from_pandas(df)
-            dataset.push_to_hub(DATASET_ID)
-            print(f"Dataset '{DATASET_ID}' pushed to the Hub.")
-        except Exception as e:
-            print(f"Failed to push dataset to the Hub: {e}")
+    try:
+        processor = RepoProcessor(MIRROR_DIRECTORY)
+        processor.process_repositories()
+        
+        logger.info("Uploading processed data to Hub")
+        upload_to_hub(file_format=FEATHER_FORMAT, repo_id=DATASET_ID)
+        
+        logger.info("Processing completed successfully")
+    except Exception as e:
+        logger.error(f"Fatal error in main execution: {e}")
