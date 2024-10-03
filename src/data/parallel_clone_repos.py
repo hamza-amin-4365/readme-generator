@@ -5,8 +5,8 @@ from github import Github
 from dotenv import load_dotenv
 load_dotenv()
 
-ORG = "hamza-amin-4365"
-MIRROR_DIRECTORY = "hf_public_repos"
+ORG = "vijdaancoding"
+MIRROR_DIRECTORY = "test"
 
 
 def get_repos(username, access_token=None, include_fork=False):
