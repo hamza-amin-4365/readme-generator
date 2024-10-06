@@ -5,8 +5,8 @@ from github import Github
 from dotenv import load_dotenv
 load_dotenv()
 
-ORG = "vijdaancoding"
-MIRROR_DIRECTORY = "test"
+ORG = "Netflix"
+MIRROR_DIRECTORY = "public-repos"
 
 
 def get_repos(username, access_token=None, include_fork=False):

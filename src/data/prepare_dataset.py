@@ -18,7 +18,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Constants
-MIRROR_DIRECTORY = "hf_public_repos"
+MIRROR_DIRECTORY = "public-repos"
 DATASET_ID = "hamza-amin/readme-gen-data"
 SERIALIZE_IN_CHUNKS = 10000
 FEATHER_FORMAT = "ftr"
