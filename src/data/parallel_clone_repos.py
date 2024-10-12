@@ -5,7 +5,7 @@ from github import Github
 from dotenv import load_dotenv
 load_dotenv()
 
-ORG = "Netflix"
+ORG = "aws"
 MIRROR_DIRECTORY = "public-repos"
 
 

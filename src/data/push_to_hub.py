@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 SOURCE_REPO = "hamza-amin/readme-gen-data"
 TARGET_REPO = "hamza-amin/readme-gen-data-v2"
 FILES_TO_PROCESS = [
-    "df_chunk_0_168.ftr"
+    "df_chunk_0_346.ftr"
 ]
 
 def safe_download_file(repo_id: str, filename: str) -> str:
