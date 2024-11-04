@@ -5,8 +5,8 @@ from github import Github
 from dotenv import load_dotenv
 load_dotenv()
 
-ORG = "aws"
-MIRROR_DIRECTORY = "public-repos"
+ORG = "openai"
+MIRROR_DIRECTORY = "open-ai-repos"
 
 
 def get_repos(username, access_token=None, include_fork=False):

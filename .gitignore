@@ -1,5 +1,5 @@
 .env
-public-repos/
+open-ai-repos/
 test/
 test-2/
 test.py
